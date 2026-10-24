@@ -339,6 +339,63 @@ with your REA version, target type, steps to reproduce and error output.
 
 </details>
 
+## Runtime performance
+
+**Rust started faster and used less memory in these tests. Ghidra decompilation
+was faster on the small C test, but Rust Ghidra failed on the larger Go program.**
+
+The table compares the original TypeScript version with the standalone Rust
+migration. Lower times are better. One second is 1,000 milliseconds (ms).
+
+| What REA did                                               | TypeScript time |     Rust time | Result                            |
+| ---------------------------------------------------------- | --------------: | ------------: | --------------------------------- |
+| Start, then read build details from a Go program           |    0.57 seconds | 0.064 seconds | Rust took about one ninth as long |
+| Start, then read a 25,000-package Rust test file           |    0.89 seconds |  0.46 seconds | Rust took about half as long      |
+| Start, run nine Go checks in one session, and save results |    1.15 seconds |  0.33 seconds | Rust took about one third as long |
+| Repeat a Go check while REA stays running                  |          7.3 ms |       16.2 ms | Rust took about twice as long     |
+
+Starting REA accounts for much of the difference in the first three rows.
+The last row measures requests after that startup step.
+
+For the Go command, typical peak memory use was about **351 MiB for TypeScript
+versus 99 MiB for Rust**. This is based on periodic measurements during seven
+runs, which can miss brief spikes. MiB is a memory unit close to a megabyte.
+
+All 84 metadata/startup test runs completed, and the tested analysis results and saved exports
+contained the same information. Tests ran on an Apple M1 Pro on 24 October 2026,
+with files already in the operating system's cache. The last row covers 56
+repeated calls per version across seven sessions, with REA staying running
+throughout each session.
+
+This covers a few offline file-reading tasks. The tested Rust build was missing
+11 of the 209 tools it listed, and some tool definitions differed. Actual AI
+token usage or cost was not measured.
+
+We also tested **real Ghidra decompilation**: turning compiled functions back
+into readable, C-like code. TypeScript used Java Ghidra 12.1.4; native REA used
+the Rust Ghidra port, `ghidra-decompiler` 2.1.0, based on Ghidra 12.2.
+
+| Ghidra task on the same small C program             | TypeScript + Java Ghidra | Native + Rust Ghidra | What this means                                             |
+| --------------------------------------------------- | -----------------------: | -------------------: | ----------------------------------------------------------- |
+| Start REA and get the first function's code         |             9.43 seconds |         0.39 seconds | Rust got the first answer about 24 times sooner             |
+| Start REA and get all three selected functions      |             9.47 seconds |         0.43 seconds | Both returned all three and passed the checked source facts |
+| Request the same function again in the open session |                  10.3 ms |               1.2 ms | Rust returned the repeated answer about nine times sooner   |
+| Peak memory during the complete session             |                1,022 MiB |              214 MiB | Rust used about 79% less memory                             |
+
+These are middle results from seven sessions per version, with 56 repeated
+calls per version. Most of the first-answer difference comes before the actual
+decompilation request. Java also showed some readable names and strings where
+Rust showed memory addresses.
+
+**On the larger Go formatter, Java returned all three requested functions;
+Rust returned none because of an import-name collision.** That failed attempt
+is not counted as a speed win. The [Ghidra report](experiments/analysis-efficiency/runtime-comparison/GHIDRA.md)
+shows the failure, output differences, exact measurements and test limits.
+
+The [full benchmark report](experiments/analysis-efficiency/runtime-comparison/README.md)
+explains the tests in plain language and includes expandable technical details,
+raw measurements, and instructions to repeat them.
+
 ## Documentation
 
 Start with the website's [worked guides](https://rea.tools/guides/).
